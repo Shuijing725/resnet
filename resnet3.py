@@ -4,9 +4,9 @@ from keras.models import model_from_json
 
 from keras.models import Sequential, Model
 from keras.layers import Convolution2D, MaxPooling2D, ZeroPadding2D, AveragePooling2D
-from keras.layers import Activation, Dropout, Flatten, Dense, Add
+from keras.layers import Activation, Dropout, Flatten, Dense, Add, Input, Reshape
 from keras.layers.normalization import BatchNormalization
-from keras.layers.merge import add
+from keras.layers import add
 from keras.regularizers import l2
 
 import numpy as np
@@ -18,9 +18,10 @@ from keras import optimizers
 
 def build_resnet18(input_size):
 	# input block
-	inputs = Input(shape = input_size)_
+	print(input_size)
+	inputs = Input(shape = input_size)
 	conv1_cov = Convolution2D(filters = 64, kernel_size = (7, 7), strides = (2, 2), \
-		padding="valid", kernel_intializer = 'he_normal', kernel_regularizer = l2(1e-4))(inputs)
+		padding="valid", kernel_initializer = 'he_normal', kernel_regularizer = l2(1e-4))(inputs)
 	conv1_pad = ZeroPadding2D(padding = (3, 3))(conv1_cov)
 	conv1_batch = BatchNormalization(axis = 3, scale = True)(conv1_pad)
 	conv1_relu = Activation('relu')(conv1_batch)
@@ -28,66 +29,92 @@ def build_resnet18(input_size):
 	# first pooling
 	pool1 = MaxPooling2D(pool_size = (3, 3), strides = 2)(conv1_relu)
 
+ 	# ------------------------------------------------------------------------------------
 	# first residual block: implemented in the proposed version, not original
 	# bn -> relu -> convolution -> bn -> relu -> convolution
 	conv2_bn1 = BatchNormalization(axis = 3, scale = True)(pool1)
 	conv2_relu1 = Activation('relu')(conv2_bn1)
 	conv2_weight1 = Convolution2D(filters = 64, kernel_size = (3, 3), strides = (1, 1), \
-		padding="valid", kernel_intializer = 'he_normal', kernel_regularizer = l2(1e-4))(conv2_relu1)
+		padding="valid", kernel_initializer = 'he_normal', kernel_regularizer = l2(1e-4))(conv2_relu1)
 	
 	conv2_bn2 = BatchNormalization(axis = 3, scale = True)(conv2_weight1)
 	conv2_relu2 = Activation('relu')(conv2_bn2)
 	conv2_weight2 = Convolution2D(filters = 64, kernel_size = (3, 3), strides = (1, 1), \
-		padding="valid", kernel_intializer = 'he_normal', kernel_regularizer = l2(1e-4))(conv2_relu2)
+		padding="valid", kernel_initializer = 'he_normal', kernel_regularizer = l2(1e-4))(conv2_relu2)
 
-	add2 = Add([conv2_weight2, pool1])
+	# add a dummy convolution layer to match the shape
+	filter_size = int(conv2_weight2.shape[3])
+	kernel_size = np.absolute(int(pool1.shape[1]) - int(conv2_weight2.shape[1])) + 1
+	
+	pool1_resize = Convolution2D(filters = filter_size, kernel_size = (kernel_size, kernel_size), \
+		strides = (1, 1), kernel_initializer = 'he_normal', kernel_regularizer = l2(1e-4))(pool1)
+	# print('pool1_resize:', pool1_resize.shape)
+	# print('pool1:', pool1.shape)
+	# print('conv:', conv2_weight2.shape)
+	add2 = add([conv2_weight2, pool1_resize])
 	relu_add2 = Activation('relu')(add2)
 
+ 	# ------------------------------------------------------------------------------------
 	# second block
 	conv3_bn1 = BatchNormalization(axis = 3, scale = True)(relu_add2)
 	conv3_relu1 = Activation('relu')(conv3_bn1)
 	conv3_weight1 = Convolution2D(filters = 128, kernel_size = (3, 3), strides = (1, 1), \
-		padding="valid", kernel_intializer = 'he_normal', kernel_regularizer = l2(1e-4))(conv3_relu1)
+		padding="valid", kernel_initializer = 'he_normal', kernel_regularizer = l2(1e-4))(conv3_relu1)
 	
 	conv3_bn2 = BatchNormalization(axis = 3, scale = True)(conv3_weight1)
 	conv3_relu2 = Activation('relu')(conv3_bn2)
 	conv3_weight2 = Convolution2D(filters = 128, kernel_size = (3, 3), strides = (1, 1), \
-		padding="valid", kernel_intializer = 'he_normal', kernel_regularizer = l2(1e-4))(conv3_relu2)
+		padding="valid", kernel_initializer = 'he_normal', kernel_regularizer = l2(1e-4))(conv3_relu2)
 
-	add3 = Add([conv2_weight2, relu_add2])
+	add3 = Add()([conv2_weight2, relu_add2])
 	relu_add3= Activation('relu')(add3)		
-    
+ 
+ 	# ------------------------------------------------------------------------------------   
     # third block
 	conv4_bn1 = BatchNormalization(axis = 3, scale = True)(relu_add3)
 	conv4_relu1 = Activation('relu')(conv4_bn1)
 	conv4_weight1 = Convolution2D(filters = 256, kernel_size = (3, 3), strides = (1, 1), \
-		padding="valid", kernel_intializer = 'he_normal', kernel_regularizer = l2(1e-4))(conv4_relu1)
+		padding="valid", kernel_initializer = 'he_normal', kernel_regularizer = l2(1e-4))(conv4_relu1)
 	
 	conv4_bn2 = BatchNormalization(axis = 3, scale = True)(conv4_weight1)
 	conv4_relu2 = Activation('relu')(conv4_bn2)
 	conv4_weight2 = Convolution2D(filters = 256, kernel_size = (3, 3), strides = (1, 1), \
-		padding="valid", kernel_intializer = 'he_normal', kernel_regularizer = l2(1e-4))(conv4_relu2)
+		padding="valid", kernel_initializer = 'he_normal', kernel_regularizer = l2(1e-4))(conv4_relu2)
 
-	add4 = Add([conv4_weight2, relu_add3])
+	# add a dummy convolution layer to match the shape
+	filter_size = int(conv4_weight2.shape[3])
+	kernel_size = np.absolute(int(relu_add3.shape[1]) - int(conv4_weight2.shape[1])) + 1
+
+	relu_add3_resize = Convolution2D(filters = filter_size, kernel_size = (kernel_size, kernel_size), \
+		strides = (1, 1), kernel_initializer = 'he_normal', kernel_regularizer = l2(1e-4))(relu_add3)
+	add4 = Add()([conv4_weight2, relu_add3_resize])
 	relu_add4 = Activation('relu')(add4)	        
 
+ 	# ------------------------------------------------------------------------------------
 	# last block
 	conv5_bn1 = BatchNormalization(axis = 3, scale = True)(relu_add4)
 	conv5_relu1 = Activation('relu')(conv5_bn1)
 	conv5_weight1 = Convolution2D(filters = 512, kernel_size = (3, 3), strides = (1, 1), \
-		padding="valid", kernel_intializer = 'he_normal', kernel_regularizer = l2(1e-4))(conv5_relu1)
+		padding="valid", kernel_initializer = 'he_normal', kernel_regularizer = l2(1e-4))(conv5_relu1)
 	
 	conv5_bn2 = BatchNormalization(axis = 3, scale = True)(conv5_weight1)
 	conv5_relu2 = Activation('relu')(conv5_bn2)
 	conv5_weight2 = Convolution2D(filters = 512, kernel_size = (3, 3), strides = (1, 1), \
-		padding="valid", kernel_intializer = 'he_normal', kernel_regularizer = l2(1e-4))(conv5_relu2)
-	add5 = Add([conv5_weight2, relu_add4])
+		padding="valid", kernel_initializer = 'he_normal', kernel_regularizer = l2(1e-4))(conv5_relu2)
+
+	# add a dummy convolution layer to match the shape
+	filter_size = int(conv5_weight2.shape[3])
+	kernel_size = np.absolute(int(relu_add4.shape[1]) - int(conv5_weight2.shape[1])) + 1
+
+	relu_add4_resize = Convolution2D(filters = filter_size, kernel_size = (kernel_size, kernel_size), \
+		strides = (1, 1), kernel_initializer = 'he_normal', kernel_regularizer = l2(1e-4))(relu_add4)
+	add5 = Add()([conv5_weight2, relu_add4_resize])
 	relu_add5 = Activation('relu')(add5)	
 
 	# end 
 	pool5 = AveragePooling2D(pool_size = (7, 7), strides = 1)(relu_add5)
 	flatten = Flatten()(pool5)
-	fc = Dense(1000, kernel_intializer = 'he_normal', kernel_regularizer = l2(1e-4), \
+	fc = Dense(1000, kernel_initializer = 'he_normal', kernel_regularizer = l2(1e-4), \
 		activation = 'softmax')(flatten)
 	output = Dense(1)(fc)
 
@@ -116,7 +143,7 @@ early_stopper = EarlyStopping(min_delta=0.0001, patience=10)
 csv_logger = CSVLogger('resnet18.csv')
 
 # build model
-model = build_resnet18((img_channels, img_width, img_height))
+model = build_resnet18((img_width, img_height, img_channels))
 # myoptimizer = optimizers.SGD(lr=0.1, momentum = 0.9, nesterov = True)
 myoptimizer = optimizers.RMSprop()
 # myoptimizer = optimizers.Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
