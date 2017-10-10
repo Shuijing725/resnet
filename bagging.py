@@ -46,10 +46,10 @@ def bagging(model_weight_paths):
 
 	# make a folder named 'folder_name' to store result files
 	if not os.path.exists(folder_name):
-    	os.makedirs(folder_name)
+		os.makedirs(folder_name)
 
 	# test model on train & test data of dataset 1~3
-	for dataset in range(3):
+	for dataset in range(1):
 		# parse directory of dataset
 		if dataset == 0:
 			dataset_name = 'first_dataset'
@@ -64,7 +64,7 @@ def bagging(model_weight_paths):
 			else:
 				train_name = 'test'
 
-			data_folder = '/home/ubuntu/cancer-prediction/deep_learning/datasets'
+			data_folder = '/home/shuijing/cancer-prediction/deep_learning/datasets'
 			test_data_path = os.path.join(data_folder, dataset_name, train_name)
 			# generate test data
 			test_datagen = ImageDataGenerator(rescale=1./255)
@@ -97,7 +97,7 @@ def bagging(model_weight_paths):
 			# keys: image name, each image has multiple patches
 			# value: [# of 0 class vote, # of 1 class vote, real label]
 
-			image_dict = {}
+			# image_dict = {}
 			image_dict_list = [dict() for j in range(len(preds))]
 
 			correct_patch = 0
@@ -114,8 +114,9 @@ def bagging(model_weight_paths):
 				else:
 					image_name = temp[3]
 
-				if image_name not in image_dict:
-					image_dict[image_name] = [0, 0, real_label]
+				if image_name not in image_dict_list[0]:
+					for j in range(len(preds)):
+						image_dict_list[j][image_name] = [0, 0, real_label]
 
 				# predict current patch
 				for j in range(len(preds)):
@@ -131,10 +132,10 @@ def bagging(model_weight_paths):
 							curr_patch_pred = 1
 					else: # for resnet results:
 						if probability[0] > probability[1]:
-							image_dict[j][image_name][0] += 1
+							image_dict_list[j][image_name][0] += 1
 							curr_patch_pred = 0
 						else:
-							image_dict[j][image_name][1] += 1
+							image_dict_list[j][image_name][1] += 1
 							curr_patch_pred = 1
 
 
@@ -142,8 +143,8 @@ def bagging(model_weight_paths):
 					if curr_patch_pred == real_label:
 						correct_patch += 1
 
-			print("image dictionary is:")
-			print(image_dict)
+			# print("image dictionary is:")
+			# print(image_dict)
 
 			print("probabilities for 2 classes are:")
 			# vote by majority
@@ -156,13 +157,15 @@ def bagging(model_weight_paths):
 			correct_bagging = 0
 			# for each image
 			for image_name in images:
+				print('image name:', image_name)
 				negative = 0
 				positive = 0
 				true_label = image_dict_list[0][image_name][2]
+				print("true label:", true_label)
 				# for each model's prediction
 				for j in range(len(preds)):
 					result = image_dict_list[j][image_name]
-					
+					print('result of model', j, ": ", result)
 					print(result)
 					if result[0] > result[1]: # the current j-th model votes for negative
 						negative += 1
@@ -174,23 +177,28 @@ def bagging(model_weight_paths):
 					# now compare it with real label, result[2]
 					if majority == result[2]:
 						correct_image += 1
-
+				print('# of model votes positive:', positive, ", # of models vote negative: ", negative)
 				# decide the bagging result of models
 				if (negative > positive and true_label == 0) or (positive > negative and true_label == 1):
 					correct_bagging += 1
+				else:
+					print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++=")
+					print("Wrong!")
 
 			patch_accuracy = correct_patch*1.0/len(model_weight_paths)/len(test_generator.filenames[:])
 			print("Average Patch-wide accuracy is: {}".format(patch_accuracy))
 			image_accuarcy = correct_image*1.0/len(model_weight_paths)/len(images)
 			print("Average Image-wide accuracy given by majority vote is: {}".format(image_accuarcy))
 
-			bagging_acc = correct_bagging / len(images)
+			bagging_acc = correct_bagging * 1.0 / len(images)
+			print('correct_bagging:', correct_bagging)
 			print("Bagging accuracy given by input models is: {}".format(bagging_acc))
 			sys.stdout = orig_stdout
 			output.close()
 
-model1_path = '/bangqi_results/bangqi_6_9_1_44pm_1/'
-model2_path = 'results/8_18_resnet18_l2=1e-4/'
+model1_path = 'results/bangqi/bangqi_6_9_1_44pm_1/'
+model2_path = 'results/8_18_resnet18_l2=1e-5/'
 model3_path = 'results/10_5_resnet50/'
-
-bagging([model1_path, model2_path, model3_path])
+model4_path = 'results/9_27_resnet34_l2=1e-4/'
+model5_path = 'results/bangqi/bangqi_6_13_12_18pm'
+bagging([model1_path, model2_path, model3_path, model4_path, model5_path])
