@@ -164,11 +164,12 @@ def bagging(model_weight_paths):
 					result = image_dict_list[j][image_name]
 					
 					print(result)
-					if result[0] > result[1]:
+					if result[0] > result[1]: # the current j-th model votes for negative
 						negative += 1
-					else:
+						majority = 0
+					else: # the current j-th model votes for postive
 						positive += 1
-
+						majority = 1
 					# majority is the predict given by majority vote
 					# now compare it with real label, result[2]
 					if majority == result[2]:
